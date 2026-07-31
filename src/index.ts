@@ -69,6 +69,12 @@ async function main(): Promise<void> {
   console.log("");
 
   printStep(2, 2, "watch");
+  if (!jsonMode()) {
+    console.log(`  track   ${cfg.watchWallet}`);
+    if (cfg.watchWallet === DEFAULT_WATCH_WALLET) {
+      printWarn("demo track wallet - override with WATCH_WALLET for real work");
+    }
+  }
   const edge = await RpcEdge.fromEnv();
   const connection = await edge.connection({ commitment: "confirmed" });
 

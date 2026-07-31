@@ -40,6 +40,21 @@ export function shortSig(sig: string): string {
   return `${sig.slice(0, 8)}…${sig.slice(-8)}`;
 }
 
+/** Human label for on-chain tx result (not our submit result). */
+export function onChainStatus(err: unknown): { ok: boolean; label: string } {
+  if (err == null || err === false) return { ok: true, label: "on-chain ok" };
+  if (typeof err === "string") return { ok: false, label: `on-chain failed: ${err}` };
+  try {
+    const s = JSON.stringify(err);
+    if (s.includes("InstructionError")) {
+      return { ok: false, label: "on-chain failed (instruction error)" };
+    }
+    return { ok: false, label: `on-chain failed (${s.slice(0, 80)})` };
+  } catch {
+    return { ok: false, label: "on-chain failed" };
+  }
+}
+
 export type BannerInfo = {
   mode: string;
   hasKey: boolean;
@@ -47,7 +62,7 @@ export type BannerInfo = {
   usingDefaultExampleWallet: boolean;
 };
 
-/** Full professional header. */
+/** Full professional header - always shows full track wallet. */
 export function printBanner(info: BannerInfo): void {
   if (jsonMode()) {
     emit({
@@ -59,14 +74,13 @@ export function printBanner(info: BannerInfo): void {
     return;
   }
 
-  const W = 58;
+  const W = 62;
   const rule = "─".repeat(W);
-  const wallet = shortAddr(info.watchWallet);
   const auth = info.hasKey
     ? paint(OK, "key set → rpc.rpcedge.com")
     : paint(WARN, "no key → public demo only");
-  const watchNote = info.usingDefaultExampleWallet
-    ? paint(DIM, "demo wallet · not an endorsement")
+  const trackNote = info.usingDefaultExampleWallet
+    ? paint(DIM, "default demo · not an endorsement · NFA")
     : paint(DIM, "custom WATCH_WALLET");
 
   const lines = [
@@ -78,7 +92,8 @@ export function printBanner(info: BannerInfo): void {
     `  ${paint(DIM, "version")}   ${VERSION}`,
     `  ${paint(DIM, "mode")}      ${info.mode}`,
     `  ${paint(DIM, "auth")}      ${auth}`,
-    `  ${paint(DIM, "watch")}     ${wallet}  ${watchNote}`,
+    `  ${paint(DIM, "track")}     ${paint(HI, info.watchWallet)}`,
+    `  ${paint(DIM, "         ")} ${trackNote}`,
     `  ${paint(DIM, "docs")}      https://rpcedge.com/toolkit`,
     `  ${paint(DIM, "signup")}    https://app.rpcedge.com/signup`,
     paint(DIM, rule),
@@ -150,7 +165,9 @@ export function printDoctorReport(report: {
   console.log(`  ${paint(DIM, "rpc")}       ${report.config.rpcUrlRedacted}`);
   console.log(`  ${paint(DIM, "grpc")}      ${report.config.grpcHost}`);
   console.log(`  ${paint(DIM, "relay")}     ${report.config.relayBase}`);
-  console.log(`  ${paint(DIM, "key")}       ${report.config.hasKey ? "present" : "none"}  ${paint(DIM, `(${report.config.keySource})`)}`);
+  console.log(
+    `  ${paint(DIM, "key")}       ${report.config.hasKey ? "present" : "none"}  ${paint(DIM, `(${report.config.keySource})`)}`,
+  );
   for (const ch of report.checks) {
     const mark = ch.ok ? paint(OK, "ok") : paint(ERR, "fail");
     console.log(`  ${paint(DIM, "check")}     ${mark}  ${ch.name}  ${paint(DIM, ch.detail)}`);
@@ -167,6 +184,7 @@ export type PaperEvent = {
   err?: unknown;
   feePayer?: string | null;
   source?: "live" | "history" | "seed";
+  watchWallet?: string;
   note?: string;
 };
 
@@ -176,21 +194,34 @@ export function logPaper(event: PaperEvent): void {
     return;
   }
 
-  const src =
+  const sourceLabel =
     event.source === "live"
-      ? paint(ACCENT, "live")
+      ? "live ws"
       : event.source === "seed"
-        ? paint(DIM, "seed")
-        : paint(DIM, "hist");
-  const err = event.err ? paint(WARN, " err") : "";
-  const slot = event.slot != null ? paint(DIM, ` slot ${event.slot}`) : "";
+        ? "seed sample"
+        : "history index";
+
+  const chain = onChainStatus(event.err);
+  const chainPaint = chain.ok ? paint(OK, chain.label) : paint(WARN, chain.label);
+  const wallet = event.watchWallet
+    ? paint(DIM, `track ${shortAddr(event.watchWallet)}`)
+    : "";
+  const slot = event.slot != null ? paint(DIM, `slot ${event.slot}`) : "";
+
+  // Two-line paper event for clarity
   console.log(
-    `  ${paint(OK, "paper")}  ${src}${err}  ${shortSig(event.signature)}${slot}  ${paint(DIM, "no tx submitted")}`,
+    `  ${paint(OK, "paper")}  ${paint(DIM, sourceLabel)}  ·  ${chainPaint}  ·  ${paint(DIM, "no submit")}`,
   );
+  console.log(
+    `         ${paint(HI, shortSig(event.signature))}  ${slot}${wallet ? `  ${wallet}` : ""}`,
+  );
+  if (event.watchWallet) {
+    console.log(`         ${paint(DIM, event.watchWallet)}`);
+  }
 }
 
 export function logStatus(
-  kind: "watch_start" | "watch_listening" | "watch_primed" | "history" | "shutdown",
+  kind: "watch_start" | "watch_listening" | "watch_primed" | "history" | "shutdown" | "retry",
   detail: string,
   extra?: Record<string, unknown>,
 ): void {
@@ -207,7 +238,9 @@ export function logStatus(
           ? "index"
           : kind === "history"
             ? "index"
-            : "done";
+            : kind === "retry"
+              ? "retry"
+              : "done";
   console.log(`  ${paint(DIM, label.padEnd(6))}  ${detail}`);
 }
 

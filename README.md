@@ -100,17 +100,18 @@ export WATCH_WALLET=YourBase58PubkeyHere
 Pretty by default. Use `LOG_JSON=1` for machine-readable events.
 
 ```text
-──────────────────────────────────────────────────────────
+──────────────────────────────────────────────────────────────
   ›››  rpc edge  ·  copy-ref
        paper copy-watch  ·  not a strategy  ·  MIT
-──────────────────────────────────────────────────────────
+──────────────────────────────────────────────────────────────
   version   0.1.0
   mode      paper
   auth      key set → rpc.rpcedge.com
-  watch     bwam…fSXa  demo wallet · not an endorsement
+  track     bwamJzztZsepfkteWRChggmXuiiCQvpLqPietdNfSXa
+            default demo · not an endorsement · NFA
   docs      https://rpcedge.com/toolkit
   signup    https://app.rpcedge.com/signup
-──────────────────────────────────────────────────────────
+──────────────────────────────────────────────────────────────
 
 [1/2] doctor
   status    OK
@@ -118,11 +119,18 @@ Pretty by default. Use `LOG_JSON=1` for machine-readable events.
   ready     doctor green - continue to watch
 
 [2/2] watch
-  watch   logsSubscribe on bwam…fSXa  ·  mode paper
+  track   bwamJzztZsepfkteWRChggmXuiiCQvpLqPietdNfSXa
+  watch   tracking bwam…fSXa  ·  logsSubscribe  ·  mode paper
+  watch   bwamJzztZsepfkteWRChggmXuiiCQvpLqPietdNfSXa
   index   address index api.mainnet-beta.solana.com
-  live    subscription #0  ·  waiting for new activity
-  paper   seed  2FcHAuLT…5xKEprga  slot …  no tx submitted
+  index   seeded 20 recent  ·  3 failed on-chain in batch  ·  showing 1 sample
+  live    subscription #0  ·  waiting for new activity on track wallet
+  paper   seed sample  ·  on-chain ok  ·  no submit
+          4xACgbgL…5xKEprga  slot 436334641  track bwam…fSXa
+          bwamJzztZsepfkteWRChggmXuiiCQvpLqPietdNfSXa
 ```
+
+On-chain `err` is labeled clearly (`on-chain ok` / `on-chain failed …`) so it is not confused with our paper path (we never submit). History fetches retry with backoff; seed sample prefers a successful on-chain tx when available.
 
 ---
 
