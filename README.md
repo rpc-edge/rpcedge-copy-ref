@@ -124,18 +124,18 @@ Pretty by default. Use `LOG_JSON=1` for machine-readable events.
   ready     doctor green - continue to watch
 
 [2/2] watch
-  track   bwamJzztZsepfkteWRChggmXuiiCQvpLqPietdNfSXa
-  watch   tracking bwam…fSXa  ·  logsSubscribe  ·  mode paper
-  watch   bwamJzztZsepfkteWRChggmXuiiCQvpLqPietdNfSXa
-  index   address index api.mainnet-beta.solana.com
-  index   seeded 20 recent  ·  3 failed on-chain in batch  ·  showing 1 sample
-  live    subscription #0  ·  waiting for new activity on track wallet
-  paper   seed sample  ·  on-chain ok  ·  no submit
-          4xACgbgL…5xKEprga  slot 436334641  track bwam…fSXa
-          bwamJzztZsepfkteWRChggmXuiiCQvpLqPietdNfSXa
+  track    bwamJzztZsepfkteWRChggmXuiiCQvpLqPietdNfSXa
+  note     demo · high-activity … · polarized · NFA · set WATCH_WALLET to override
+  link     https://explorer.solana.com/address/bwamJz…
+  live     logsSubscribe #0  edge ws
+  hist     api.mainnet-beta.solana.com  address index · not on edge
+  opts     mode paper  ·  seed on  ·  hb 30s
+  ready    primed 15  ·  0 failed on-chain  ·  listening  ·  Ctrl+C stop
+  paper    seed sample  ·  on-chain ok  ·  no submit
+           4xACgbgL…5xKEprga  slot 436334641  track bwam…fSXa
 ```
 
-On-chain `err` is labeled clearly (`on-chain ok` / `on-chain failed …`) so it is not confused with our paper path (we never submit). History fetches retry with backoff; seed sample prefers a successful on-chain tx when available. Full track wallet is shown in the banner and at watch start; paper lines use the short form. Ctrl+C prints a session summary (counts by source, on-chain ok/failed).
+On-chain `err` is labeled clearly (`on-chain ok` / `on-chain failed …`) so it is not confused with our paper path (we never submit). History retries with backoff; seed prefers a successful on-chain tx. Full track wallet once in the watch panel; paper lines use the short form. Ctrl+C prints a session summary.
 
 ---
 

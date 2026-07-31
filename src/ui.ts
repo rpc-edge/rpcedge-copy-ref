@@ -110,6 +110,91 @@ export function printStep(n: number, total: number, label: string): void {
   console.log(`${paint(ACCENT, `[${n}/${total}]`)} ${paint(BOLD + HI, label)}`);
 }
 
+/** Fixed-width dim label so watch/doctor rows align. */
+function row(label: string, value: string): void {
+  console.log(`  ${paint(DIM, label.padEnd(8))} ${value}`);
+}
+
+export type WatchPanelInfo = {
+  watchWallet: string;
+  isDemo: boolean;
+  /** Short operator note under track (demo context, NFA). */
+  note?: string;
+  explorerUrl?: string;
+  mode: string;
+  seedSample: boolean;
+  heartbeatMs: number;
+  /** Edge logsSubscribe attached. */
+  liveOk: boolean;
+  subscription?: number;
+  /** Host for history index, or null if off. */
+  historyHost?: string | null;
+};
+
+/**
+ * One compact watch block - full wallet once, no duplicate track lines.
+ */
+export function printWatchPanel(info: WatchPanelInfo): void {
+  if (jsonMode()) {
+    emit({ type: "watch_setup", ...info });
+    return;
+  }
+
+  row("track", paint(HI, info.watchWallet));
+  if (info.note) {
+    row("note", paint(DIM, info.note));
+  }
+  if (info.explorerUrl) {
+    row("link", paint(DIM, info.explorerUrl));
+  }
+
+  const livePart = info.liveOk
+    ? paint(OK, `logsSubscribe #${info.subscription ?? 0}`)
+    : paint(WARN, "logsSubscribe offline");
+  row("live", `${livePart}  ${paint(DIM, "edge ws")}`);
+
+  if (info.historyHost) {
+    row("hist", `${paint(HI, info.historyHost)}  ${paint(DIM, "address index · not on edge")}`);
+  } else {
+    row("hist", paint(DIM, "off"));
+  }
+
+  const opts: string[] = [
+    `mode ${info.mode}`,
+    info.seedSample ? "seed on" : "seed off",
+  ];
+  if (info.heartbeatMs > 0) {
+    opts.push(`hb ${Math.round(info.heartbeatMs / 1000)}s`);
+  } else {
+    opts.push("hb off");
+  }
+  row("opts", paint(DIM, opts.join("  ·  ")));
+}
+
+export type WatchPrimedInfo = {
+  recent: number;
+  failedOnChain: number;
+  seedSample: boolean;
+  liveOk: boolean;
+};
+
+/** After history prime (or immediately if no history). */
+export function printWatchReady(info: WatchPrimedInfo): void {
+  if (jsonMode()) {
+    emit({ type: "watch_ready", ...info });
+    return;
+  }
+  const parts = [
+    `primed ${info.recent}`,
+    `${info.failedOnChain} failed on-chain`,
+  ];
+  if (!info.seedSample) parts.push("seed off");
+  if (info.liveOk) parts.push("listening");
+  else parts.push("history-only");
+  parts.push("Ctrl+C stop");
+  row("ready", paint(OK, parts.join("  ·  ")));
+}
+
 export function printOk(msg: string): void {
   if (jsonMode()) {
     emit({ type: "ok", message: msg });

@@ -8,7 +8,13 @@
 import type { Connection, Logs, ConfirmedSignatureInfo } from "@solana/web3.js";
 import { PublicKey, Connection as SolConnection } from "@solana/web3.js";
 import { logPaper, paperFollowNote } from "./paper.js";
-import { logStatus, printErr, printWarn, shortAddr } from "./ui.js";
+import {
+  logStatus,
+  printErr,
+  printWarn,
+  printWatchPanel,
+  printWatchReady,
+} from "./ui.js";
 import type { AppConfig } from "./config.js";
 import {
   createStats,
@@ -19,21 +25,21 @@ import {
 
 const MAX_HISTORY_RETRIES = 5;
 
+export type WatchUiMeta = {
+  isDemo: boolean;
+  note?: string;
+  explorerUrl?: string;
+};
+
 export async function watchWallet(
   connection: Connection,
   cfg: AppConfig,
-  opts: { signal?: AbortSignal } = {},
+  opts: { signal?: AbortSignal; ui?: WatchUiMeta } = {},
 ): Promise<SessionStats> {
   const pubkey = new PublicKey(cfg.watchWallet);
   const seen = new Set<string>();
   const stats = createStats();
-
-  logStatus(
-    "watch_start",
-    `tracking ${shortAddr(cfg.watchWallet)}  ·  logsSubscribe  ·  mode ${cfg.mode}`,
-    { wallet: cfg.watchWallet, mode: cfg.mode, path: "logsSubscribe" },
-  );
-  logStatus("watch_start", cfg.watchWallet, { wallet: cfg.watchWallet });
+  const ui = opts.ui ?? { isDemo: false };
 
   let subId = -1;
   let wsRetries = 0;
@@ -60,40 +66,10 @@ export async function watchWallet(
     subId = attachLogs();
   } catch (e) {
     printWarn(
-      `logsSubscribe failed once - will keep history path. ${e instanceof Error ? e.message : e}`,
+      `logsSubscribe failed - history path only. ${e instanceof Error ? e.message : e}`,
     );
   }
 
-  const resubscribe = async (reason: string) => {
-    if (opts.signal?.aborted) return;
-    if (wsRetries >= MAX_HISTORY_RETRIES) {
-      printWarn(`logsSubscribe re-attach capped at ${MAX_HISTORY_RETRIES} - history path still active`);
-      return;
-    }
-    wsRetries += 1;
-    stats.wsResubscribes += 1;
-    logStatus(
-      "retry",
-      `logsSubscribe re-attach ${wsRetries}/${MAX_HISTORY_RETRIES}  ·  ${reason}`,
-      { attempt: wsRetries, reason },
-    );
-    try {
-      if (subId >= 0) {
-        try {
-          await connection.removeOnLogsListener(subId);
-        } catch {
-          /* ignore */
-        }
-      }
-      subId = attachLogs();
-      logStatus("watch_listening", `subscription #${subId}  ·  re-attached`);
-    } catch (e) {
-      printErr(e instanceof Error ? e.message : String(e));
-    }
-  };
-
-  let historyTimer: ReturnType<typeof setInterval> | undefined;
-  let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
   const historyRaw = process.env.HISTORY_RPC_URL?.trim();
   const historyOff =
     historyRaw === "0" || historyRaw === "off" || historyRaw === "false";
@@ -105,24 +81,69 @@ export async function watchWallet(
         ? "https://api.mainnet-beta.solana.com"
         : "";
 
+  let histHost: string | null = null;
+  if (historyUrl) {
+    try {
+      histHost = new URL(historyUrl).host;
+    } catch {
+      histHost = "history";
+    }
+  }
+
+  // Single compact setup block (no duplicate track / feed lines)
+  printWatchPanel({
+    watchWallet: cfg.watchWallet,
+    isDemo: ui.isDemo,
+    note: ui.note,
+    explorerUrl: ui.explorerUrl,
+    mode: cfg.mode,
+    seedSample: cfg.seedSample,
+    heartbeatMs: cfg.heartbeatMs,
+    liveOk: subId >= 0,
+    subscription: subId >= 0 ? subId : undefined,
+    historyHost: histHost,
+  });
+
+  const resubscribe = async (reason: string) => {
+    if (opts.signal?.aborted) return;
+    if (wsRetries >= MAX_HISTORY_RETRIES) {
+      printWarn(
+        `logsSubscribe re-attach capped at ${MAX_HISTORY_RETRIES} - history still active`,
+      );
+      return;
+    }
+    wsRetries += 1;
+    stats.wsResubscribes += 1;
+    logStatus(
+      "retry",
+      `ws re-attach ${wsRetries}/${MAX_HISTORY_RETRIES}  ·  ${reason}`,
+      { attempt: wsRetries, reason },
+    );
+    try {
+      if (subId >= 0) {
+        try {
+          await connection.removeOnLogsListener(subId);
+        } catch {
+          /* ignore */
+        }
+      }
+      subId = attachLogs();
+      logStatus("watch_listening", `re-attached  ·  #${subId}`);
+    } catch (e) {
+      printErr(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  let historyTimer: ReturnType<typeof setInterval> | undefined;
+  let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
+  let primed = false;
+
   if (historyUrl) {
     const hist = new SolConnection(historyUrl, {
       commitment: "confirmed",
       confirmTransactionInitialTimeout: 30_000,
     });
-    let histHost = "history";
-    try {
-      histHost = new URL(historyUrl).host;
-    } catch {
-      /* keep */
-    }
-    logStatus(
-      "history",
-      `address index ${histHost}  ·  edge has no full history API`,
-      { host: histHost },
-    );
 
-    let primed = false;
     let consecutiveFails = 0;
 
     const fetchSigs = async (): Promise<ConfirmedSignatureInfo[]> => {
@@ -141,7 +162,7 @@ export async function watchWallet(
           const delay = Math.min(8_000, 400 * 2 ** (attempt - 1));
           logStatus(
             "retry",
-            `history fetch failed (${attempt}/${MAX_HISTORY_RETRIES})  ·  retry in ${delay}ms`,
+            `hist fetch ${attempt}/${MAX_HISTORY_RETRIES}  ·  ${delay}ms`,
             {
               attempt,
               message: e instanceof Error ? e.message : String(e),
@@ -172,12 +193,12 @@ export async function watchWallet(
 
         const seed = sigs.find((s) => s.err == null) ?? sigs[0]!;
         const failedCount = sigs.filter((s) => s.err != null).length;
-        logStatus(
-          "watch_primed",
-          `seeded ${sigs.length} recent  ·  ${failedCount} failed on-chain in batch` +
-            (cfg.seedSample ? "  ·  showing 1 sample" : "  ·  seed sample off"),
-          { seeded: sigs.length, failedInBatch: failedCount, seedSample: cfg.seedSample },
-        );
+        printWatchReady({
+          recent: sigs.length,
+          failedOnChain: failedCount,
+          seedSample: cfg.seedSample,
+          liveOk: subId >= 0,
+        });
 
         if (cfg.mode === "paper" && cfg.seedSample) {
           recordPaper(stats, "seed", seed.err);
@@ -220,6 +241,15 @@ export async function watchWallet(
     historyTimer = setInterval(() => {
       void tick();
     }, cfg.pollMs);
+  } else {
+    // No history path - ready immediately
+    printWatchReady({
+      recent: 0,
+      failedOnChain: 0,
+      seedSample: cfg.seedSample,
+      liveOk: subId >= 0,
+    });
+    primed = true;
   }
 
   if (cfg.heartbeatMs > 0) {
@@ -238,14 +268,8 @@ export async function watchWallet(
     }, cfg.heartbeatMs);
   }
 
-  if (subId >= 0) {
-    logStatus(
-      "watch_listening",
-      `subscription #${subId}  ·  waiting for new activity on track wallet  ·  Ctrl+C to stop`,
-      { subscription: subId, wallet: cfg.watchWallet },
-    );
-  } else {
-    printWarn("no live logsSubscribe - paper path relies on history index only");
+  if (subId < 0 && !historyUrl) {
+    printWarn("no live feed and no history index - nothing to watch");
   }
 
   try {
@@ -288,14 +312,12 @@ async function handleLogs(
     return;
   }
 
-  // Live mirror deliberately not implemented - this repo is paper activation only.
   logStatus(
     "watch_listening",
-    `live event ${logs.signature.slice(0, 8)}…  ·  auto-mirror not in this ref (paper-only design)`,
+    `live event ${logs.signature.slice(0, 8)}…  ·  auto-mirror not in this ref`,
   );
 }
 
-/** Resolve after ms, or immediately if aborted (no throw - used inside poll loops). */
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
     if (signal?.aborted) {

@@ -17,19 +17,18 @@ import {
   printBanner,
   printStep,
   printWarn,
-  printInfo,
   printSessionSummary,
-  jsonMode,
 } from "./ui.js";
 
 async function main(): Promise<void> {
   const cfg = loadConfig();
+  const isDemo = cfg.watchWallet === DEFAULT_WATCH_WALLET;
 
   printBanner({
     mode: cfg.mode,
     hasKey: cfg.hasKey,
     watchWallet: cfg.watchWallet,
-    usingDefaultExampleWallet: cfg.watchWallet === DEFAULT_WATCH_WALLET,
+    usingDefaultExampleWallet: isDemo,
   });
 
   if (!cfg.hasKey) {
@@ -54,19 +53,6 @@ async function main(): Promise<void> {
   console.log("");
 
   printStep(2, 2, "watch");
-  if (!jsonMode()) {
-    console.log(`  track   ${cfg.watchWallet}`);
-    if (cfg.watchWallet === DEFAULT_WATCH_WALLET) {
-      printWarn("demo track wallet - override with WATCH_WALLET for real work");
-      printInfo(
-        `context  ${DEFAULT_WALLET_CONTEXT.roleHypothesis}  ·  ${DEFAULT_WALLET_CONTEXT.sentiment}  ·  NFA`,
-      );
-      printInfo(`explorer ${DEFAULT_WALLET_CONTEXT.explorer}`);
-    }
-    if (!cfg.seedSample) {
-      printInfo("seed sample off (SEED_SAMPLE=0)");
-    }
-  }
   const edge = await RpcEdge.fromEnv();
   const connection = await edge.connection({ commitment: "confirmed" });
 
@@ -75,7 +61,19 @@ async function main(): Promise<void> {
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
 
-  const stats = await watchWallet(connection, cfg, { signal: ac.signal });
+  const stats = await watchWallet(connection, cfg, {
+    signal: ac.signal,
+    ui: isDemo
+      ? {
+          isDemo: true,
+          note: `demo · high-activity deploy wallet · ${DEFAULT_WALLET_CONTEXT.sentiment} · NFA · set WATCH_WALLET to override`,
+          explorerUrl: DEFAULT_WALLET_CONTEXT.explorer,
+        }
+      : {
+          isDemo: false,
+          note: "custom WATCH_WALLET · paper only · no auto-submit",
+        },
+  });
   printSessionSummary(statsSnapshot(stats));
 }
 
