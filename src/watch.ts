@@ -3,13 +3,19 @@
  *
  * Primary: WebSocket logsSubscribe on edge (no history index required).
  * Paper helper: public mainnet getSignaturesForAddress as address index.
- * History fetches retry with backoff on transient errors.
+ * History fetches retry with backoff; optional edge getSlot heartbeat re-attach.
  */
 import type { Connection, Logs, ConfirmedSignatureInfo } from "@solana/web3.js";
 import { PublicKey, Connection as SolConnection } from "@solana/web3.js";
 import { logPaper, paperFollowNote } from "./paper.js";
 import { logStatus, printErr, printWarn, shortAddr } from "./ui.js";
 import type { AppConfig } from "./config.js";
+import {
+  createStats,
+  recordPaper,
+  statsSnapshot,
+  type SessionStats,
+} from "./stats.js";
 
 const MAX_HISTORY_RETRIES = 5;
 
@@ -17,9 +23,10 @@ export async function watchWallet(
   connection: Connection,
   cfg: AppConfig,
   opts: { signal?: AbortSignal } = {},
-): Promise<void> {
+): Promise<SessionStats> {
   const pubkey = new PublicKey(cfg.watchWallet);
   const seen = new Set<string>();
+  const stats = createStats();
 
   logStatus(
     "watch_start",
@@ -43,7 +50,7 @@ export async function watchWallet(
           seen.clear();
           for (const s of arr.slice(-1000)) seen.add(s);
         }
-        void handleLogs(cfg, logs, ctx.slot);
+        void handleLogs(cfg, logs, ctx.slot, stats);
       },
       "confirmed",
     );
@@ -57,15 +64,18 @@ export async function watchWallet(
     );
   }
 
-  // Resubscribe helper if connection drops (web3 may surface via errors later)
-  const resubscribe = async () => {
+  const resubscribe = async (reason: string) => {
     if (opts.signal?.aborted) return;
-    if (wsRetries >= MAX_HISTORY_RETRIES) return;
+    if (wsRetries >= MAX_HISTORY_RETRIES) {
+      printWarn(`logsSubscribe re-attach capped at ${MAX_HISTORY_RETRIES} - history path still active`);
+      return;
+    }
     wsRetries += 1;
+    stats.wsResubscribes += 1;
     logStatus(
       "retry",
-      `logsSubscribe re-attach attempt ${wsRetries}/${MAX_HISTORY_RETRIES}`,
-      { attempt: wsRetries },
+      `logsSubscribe re-attach ${wsRetries}/${MAX_HISTORY_RETRIES}  ·  ${reason}`,
+      { attempt: wsRetries, reason },
     );
     try {
       if (subId >= 0) {
@@ -83,6 +93,7 @@ export async function watchWallet(
   };
 
   let historyTimer: ReturnType<typeof setInterval> | undefined;
+  let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
   const historyRaw = process.env.HISTORY_RPC_URL?.trim();
   const historyOff =
     historyRaw === "0" || historyRaw === "off" || historyRaw === "false";
@@ -126,6 +137,7 @@ export async function watchWallet(
           return sigs;
         } catch (e) {
           lastErr = e;
+          stats.historyRetries += 1;
           const delay = Math.min(8_000, 400 * 2 ** (attempt - 1));
           logStatus(
             "retry",
@@ -145,7 +157,7 @@ export async function watchWallet(
         }`,
       );
       if (consecutiveFails >= 3) {
-        void resubscribe();
+        void resubscribe("history consecutive failures");
       }
       return [];
     };
@@ -158,18 +170,17 @@ export async function watchWallet(
         for (const s of sigs) seen.add(s.signature);
         primed = true;
 
-        // Prefer a successful on-chain tx for the seed sample when available
-        const seed =
-          sigs.find((s) => s.err == null) ?? sigs[0]!;
-
+        const seed = sigs.find((s) => s.err == null) ?? sigs[0]!;
         const failedCount = sigs.filter((s) => s.err != null).length;
         logStatus(
           "watch_primed",
-          `seeded ${sigs.length} recent  ·  ${failedCount} failed on-chain in batch  ·  showing 1 sample`,
-          { seeded: sigs.length, failedInBatch: failedCount },
+          `seeded ${sigs.length} recent  ·  ${failedCount} failed on-chain in batch` +
+            (cfg.seedSample ? "  ·  showing 1 sample" : "  ·  seed sample off"),
+          { seeded: sigs.length, failedInBatch: failedCount, seedSample: cfg.seedSample },
         );
 
-        if (cfg.mode === "paper") {
+        if (cfg.mode === "paper" && cfg.seedSample) {
+          recordPaper(stats, "seed", seed.err);
           logPaper({
             at: new Date().toISOString(),
             signature: seed.signature,
@@ -191,6 +202,7 @@ export async function watchWallet(
       for (const s of [...sigs].reverse()) {
         if (seen.has(s.signature)) continue;
         seen.add(s.signature);
+        recordPaper(stats, "history", s.err);
         logPaper({
           at: new Date().toISOString(),
           signature: s.signature,
@@ -210,6 +222,22 @@ export async function watchWallet(
     }, cfg.pollMs);
   }
 
+  if (cfg.heartbeatMs > 0) {
+    heartbeatTimer = setInterval(() => {
+      void (async () => {
+        if (opts.signal?.aborted) return;
+        try {
+          await connection.getSlot("processed");
+        } catch (e) {
+          printWarn(
+            `edge heartbeat failed - ${e instanceof Error ? e.message : e}`,
+          );
+          await resubscribe("edge heartbeat failed");
+        }
+      })();
+    }, cfg.heartbeatMs);
+  }
+
   if (subId >= 0) {
     logStatus(
       "watch_listening",
@@ -224,6 +252,7 @@ export async function watchWallet(
     await waitUntilAbort(opts.signal);
   } finally {
     if (historyTimer) clearInterval(historyTimer);
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
     if (subId >= 0) {
       try {
         await connection.removeOnLogsListener(subId);
@@ -232,10 +261,18 @@ export async function watchWallet(
       }
     }
   }
+
+  return stats;
 }
 
-async function handleLogs(cfg: AppConfig, logs: Logs, slot: number): Promise<void> {
+async function handleLogs(
+  cfg: AppConfig,
+  logs: Logs,
+  slot: number,
+  stats: SessionStats,
+): Promise<void> {
   if (cfg.mode === "paper" || !cfg.liveSubmit) {
+    recordPaper(stats, "live", logs.err);
     logPaper({
       at: new Date().toISOString(),
       signature: logs.signature,
@@ -251,9 +288,10 @@ async function handleLogs(cfg: AppConfig, logs: Logs, slot: number): Promise<voi
     return;
   }
 
+  // Live mirror deliberately not implemented - this repo is paper activation only.
   logStatus(
     "watch_listening",
-    `live stub ${logs.signature.slice(0, 8)}…  ·  auto-mirror not implemented`,
+    `live event ${logs.signature.slice(0, 8)}…  ·  auto-mirror not in this ref (paper-only design)`,
   );
 }
 
@@ -286,3 +324,5 @@ function waitUntilAbort(signal?: AbortSignal): Promise<void> {
     signal.addEventListener("abort", () => resolve(), { once: true });
   });
 }
+
+export { statsSnapshot };

@@ -11,15 +11,15 @@ loadEnvFile();
 import { RpcEdge } from "rpcedge-sdk";
 import { loadConfig, DEFAULT_WATCH_WALLET } from "./config.js";
 import { runDoctor } from "./doctor-check.js";
-import { watchWallet } from "./watch.js";
+import { watchWallet, statsSnapshot } from "./watch.js";
+import { DEFAULT_WALLET_CONTEXT } from "./wallet-context.js";
 import {
   printBanner,
   printStep,
   printWarn,
-  logStatus,
+  printInfo,
+  printSessionSummary,
   jsonMode,
-  emit,
-  VERSION,
 } from "./ui.js";
 
 async function main(): Promise<void> {
@@ -31,21 +31,6 @@ async function main(): Promise<void> {
     watchWallet: cfg.watchWallet,
     usingDefaultExampleWallet: cfg.watchWallet === DEFAULT_WATCH_WALLET,
   });
-
-  // Extra machine boot only when not already emitted via banner JSON mode
-  if (!jsonMode()) {
-    // keep a single optional JSON line disabled in pretty mode
-  } else {
-    emit({
-      type: "boot",
-      project: "rpcedge-copy-ref",
-      version: VERSION,
-      watchWallet: cfg.watchWallet,
-      usingDefaultExampleWallet: cfg.watchWallet === DEFAULT_WATCH_WALLET,
-      mode: cfg.mode,
-      hasKey: cfg.hasKey,
-    });
-  }
 
   if (!cfg.hasKey) {
     if (cfg.mode !== "paper") {
@@ -73,6 +58,13 @@ async function main(): Promise<void> {
     console.log(`  track   ${cfg.watchWallet}`);
     if (cfg.watchWallet === DEFAULT_WATCH_WALLET) {
       printWarn("demo track wallet - override with WATCH_WALLET for real work");
+      printInfo(
+        `context  ${DEFAULT_WALLET_CONTEXT.roleHypothesis}  ·  ${DEFAULT_WALLET_CONTEXT.sentiment}  ·  NFA`,
+      );
+      printInfo(`explorer ${DEFAULT_WALLET_CONTEXT.explorer}`);
+    }
+    if (!cfg.seedSample) {
+      printInfo("seed sample off (SEED_SAMPLE=0)");
     }
   }
   const edge = await RpcEdge.fromEnv();
@@ -83,15 +75,8 @@ async function main(): Promise<void> {
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
 
-  try {
-    await watchWallet(connection, cfg, { signal: ac.signal });
-  } catch (e) {
-    if (e instanceof Error && e.message === "aborted") {
-      logStatus("shutdown", "stopped");
-      return;
-    }
-    throw e;
-  }
+  const stats = await watchWallet(connection, cfg, { signal: ac.signal });
+  printSessionSummary(statsSnapshot(stats));
 }
 
 main().catch((e) => {

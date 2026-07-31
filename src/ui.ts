@@ -208,20 +208,24 @@ export function logPaper(event: PaperEvent): void {
     : "";
   const slot = event.slot != null ? paint(DIM, `slot ${event.slot}`) : "";
 
-  // Two-line paper event for clarity
+  // Two-line paper event (full track wallet is printed once at watch start)
   console.log(
     `  ${paint(OK, "paper")}  ${paint(DIM, sourceLabel)}  ·  ${chainPaint}  ·  ${paint(DIM, "no submit")}`,
   );
   console.log(
     `         ${paint(HI, shortSig(event.signature))}  ${slot}${wallet ? `  ${wallet}` : ""}`,
   );
-  if (event.watchWallet) {
-    console.log(`         ${paint(DIM, event.watchWallet)}`);
-  }
 }
 
 export function logStatus(
-  kind: "watch_start" | "watch_listening" | "watch_primed" | "history" | "shutdown" | "retry",
+  kind:
+    | "watch_start"
+    | "watch_listening"
+    | "watch_primed"
+    | "history"
+    | "shutdown"
+    | "retry"
+    | "stats",
   detail: string,
   extra?: Record<string, unknown>,
 ): void {
@@ -240,8 +244,37 @@ export function logStatus(
             ? "index"
             : kind === "retry"
               ? "retry"
-              : "done";
+              : kind === "stats"
+                ? "stats"
+                : "done";
   console.log(`  ${paint(DIM, label.padEnd(6))}  ${detail}`);
+}
+
+/** End-of-session summary (pretty or JSON). */
+export function printSessionSummary(snapshot: Record<string, unknown>): void {
+  if (jsonMode()) {
+    emit({ type: "session_summary", ...snapshot });
+    return;
+  }
+  const paper = snapshot.paper as { total?: number; seed?: number; history?: number; live?: number };
+  const onChain = snapshot.onChain as { ok?: number; failed?: number };
+  const elapsed = snapshot.elapsedSec ?? "?";
+  console.log("");
+  logStatus(
+    "stats",
+    `session ${elapsed}s  ·  paper ${paper?.total ?? 0}  (seed ${paper?.seed ?? 0} · hist ${paper?.history ?? 0} · live ${paper?.live ?? 0})`,
+  );
+  logStatus(
+    "stats",
+    `on-chain seen  ok ${onChain?.ok ?? 0}  ·  failed ${onChain?.failed ?? 0}  ·  no submit`,
+  );
+  if ((snapshot.historyRetries as number) > 0 || (snapshot.wsResubscribes as number) > 0) {
+    logStatus(
+      "stats",
+      `retries  history ${snapshot.historyRetries ?? 0}  ·  ws re-attach ${snapshot.wsResubscribes ?? 0}`,
+    );
+  }
+  logStatus("shutdown", "stopped  ·  paper only - nothing was submitted");
 }
 
 export function emit(obj: Record<string, unknown>): void {

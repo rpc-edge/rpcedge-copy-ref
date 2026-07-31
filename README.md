@@ -10,6 +10,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/rpc-edge/rpcedge-copy-ref/actions/workflows/ci.yml"><img src="https://github.com/rpc-edge/rpcedge-copy-ref/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://github.com/rpc-edge/rpcedge-copy-ref/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT" /></a>
   <a href="https://www.npmjs.com/package/rpcedge-sdk"><img src="https://img.shields.io/npm/v/rpcedge-sdk.svg?label=rpcedge-sdk" alt="rpcedge-sdk" /></a>
   <a href="https://rpcedge.com/toolkit"><img src="https://img.shields.io/badge/docs-toolkit-C5F23F?labelColor=08090A" alt="toolkit" /></a>
@@ -93,6 +94,9 @@ export WATCH_WALLET=YourBase58PubkeyHere
 | `LIVE_SUBMIT` | `0` | Must be `1` **and** MODE=live for non-paper branch |
 | `POLL_MS` / `POLL_LIMIT` | `2000` / `15` | History index poll only |
 | `HISTORY_RPC_URL` | public mainnet in paper | Set `off` to use edge WS only |
+| `SEED_SAMPLE` | `1` | Set `0` to skip the historical seed sample |
+| `HEARTBEAT_MS` | `30000` | Edge `getSlot` probe; re-attach logsSubscribe on failure; `0` = off |
+| `LOG_JSON` | off | `1` for machine-readable JSON events |
 
 ---
 
@@ -131,9 +135,18 @@ Pretty by default. Use `LOG_JSON=1` for machine-readable events.
           bwamJzztZsepfkteWRChggmXuiiCQvpLqPietdNfSXa
 ```
 
-On-chain `err` is labeled clearly (`on-chain ok` / `on-chain failed …`) so it is not confused with our paper path (we never submit). History fetches retry with backoff; seed sample prefers a successful on-chain tx when available.
+On-chain `err` is labeled clearly (`on-chain ok` / `on-chain failed …`) so it is not confused with our paper path (we never submit). History fetches retry with backoff; seed sample prefers a successful on-chain tx when available. Full track wallet is shown in the banner and at watch start; paper lines use the short form. Ctrl+C prints a session summary (counts by source, on-chain ok/failed).
 
 ---
+
+## Develop
+
+```bash
+pnpm install
+pnpm typecheck
+pnpm test
+pnpm start
+```
 
 ## Stack
 

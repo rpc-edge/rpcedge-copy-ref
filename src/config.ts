@@ -15,6 +15,10 @@ export type AppConfig = {
   pollMs: number;
   pollLimit: number;
   hasKey: boolean;
+  /** Emit one historical seed sample after history prime (default true). */
+  seedSample: boolean;
+  /** Edge WS health probe interval; 0 disables. */
+  heartbeatMs: number;
 };
 
 export function loadConfig(): AppConfig {
@@ -34,6 +38,8 @@ export function loadConfig(): AppConfig {
   const pollMs = clampInt(process.env.POLL_MS, 2000, 500, 60_000);
   const pollLimit = clampInt(process.env.POLL_LIMIT, 15, 1, 50);
   const hasKey = Boolean(process.env.RPCEDGE_KEY?.trim());
+  const seedSample = parseBool(process.env.SEED_SAMPLE, true);
+  const heartbeatMs = clampInt(process.env.HEARTBEAT_MS, 30_000, 0, 300_000);
 
   if (mode === "live" && !liveSubmit) {
     console.warn(
@@ -48,7 +54,18 @@ export function loadConfig(): AppConfig {
     pollMs,
     pollLimit,
     hasKey,
+    seedSample,
+    heartbeatMs,
   };
+}
+
+/** true unless set to 0 / false / off / no. Default when unset. */
+function parseBool(raw: string | undefined, defaultValue: boolean): boolean {
+  if (raw == null || raw.trim() === "") return defaultValue;
+  const v = raw.trim().toLowerCase();
+  if (v === "0" || v === "false" || v === "off" || v === "no") return false;
+  if (v === "1" || v === "true" || v === "on" || v === "yes") return true;
+  return defaultValue;
 }
 
 function clampInt(raw: string | undefined, fallback: number, min: number, max: number): number {

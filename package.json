@@ -28,6 +28,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx --test src/**/*.test.ts",
     "start": "tsx src/index.ts",
     "watch": "tsx src/index.ts",
     "doctor": "tsx src/doctor-check.ts",
