@@ -43,9 +43,12 @@ export WATCH_WALLET=YourBase58PubkeyHere
 | Layer | Behavior |
 |---|---|
 | `pnpm doctor` | Runs `npx rpcedge doctor` (falls back to SDK doctor) |
-| `pnpm start` | Polls `getSignaturesForAddress` via `rpcedge-sdk` Connection |
+| `pnpm start` | **WebSocket `logsSubscribe`** on the watch wallet via `rpcedge-sdk` Connection |
 | `MODE=paper` (default) | JSON-lines “would follow” logs only |
 | `MODE=live` + `LIVE_SUBMIT=1` | Stub only - **no auto-mirror** (you wire your own risk stack) |
+
+**Why not `getSignaturesForAddress` on rpc edge?**  
+Live trading RPCs usually **do not** index full address history (`Transaction history is not available from this node`). That is expected. Optional: set `HISTORY_RPC_URL` to an indexer/archive endpoint if you also want history polls.
 
 This is the **activation reference** for rpc edge: real key, real RPC traffic, honest paper path. Production copy bots usually add Yellowstone filters, simulation, size caps, and human kill-switches - not this repo.
 

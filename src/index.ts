@@ -28,18 +28,26 @@ async function main(): Promise<void> {
   );
 
   if (!cfg.hasKey) {
-    console.error(
-      [
-        "",
-        "RPCEDGE_KEY is not set.",
-        "  1. Sign up: https://app.rpcedge.com/signup",
-        "  2. export RPCEDGE_KEY=your-uuid-key",
-        "  3. pnpm doctor   # or: npx rpcedge@latest doctor",
-        "  4. pnpm start",
-        "",
-      ].join("\n"),
+    if (cfg.mode !== "paper") {
+      console.error(
+        [
+          "",
+          "RPCEDGE_KEY is required for non-paper runs.",
+          "  1. Sign up: https://app.rpcedge.com/signup",
+          "  2. export RPCEDGE_KEY=your-uuid-key",
+          "  3. pnpm doctor && pnpm start",
+          "",
+        ].join("\n"),
+      );
+      process.exit(1);
+    }
+    console.warn(
+      JSON.stringify({
+        type: "warn",
+        message:
+          "RPCEDGE_KEY unset - paper demo on public RPC only. Production path: app.rpcedge.com/signup + doctor.",
+      }),
     );
-    process.exit(1);
   }
 
   console.log("[1/2] doctor");
