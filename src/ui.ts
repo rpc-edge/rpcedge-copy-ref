@@ -327,6 +327,10 @@ export function logPaper(event: PaperEvent): void {
   console.log(
     `         ${paint(HI, shortSig(event.signature))}  ${slot}${wallet ? `  ${wallet}` : ""}`,
   );
+  // Explorer is the full signature path - short label only in the terminal
+  console.log(
+    `         ${paint(DIM, `https://solscan.io/tx/${event.signature}`)}`,
+  );
 }
 
 export function logStatus(

@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /**
  * rpcedge-copy-ref - copy-watch reference for rpc edge.
  *

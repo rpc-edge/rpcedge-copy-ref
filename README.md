@@ -36,6 +36,14 @@ pnpm doctor
 pnpm start
 ```
 
+After npm publish (optional):
+
+```bash
+export RPCEDGE_KEY=your-uuid-key
+npx rpcedge-copy-ref@latest
+# quiet seed: SEED_SAMPLE=0 npx rpcedge-copy-ref@latest
+```
+
 You should see a terminal header, doctor green on `rpc.rpcedge.com`, then paper events.
 
 | Link | URL |
