@@ -184,10 +184,15 @@ export function printWatchReady(info: WatchPrimedInfo): void {
     emit({ type: "watch_ready", ...info });
     return;
   }
-  const parts = [
-    `primed ${info.recent}`,
-    `${info.failedOnChain} failed on-chain`,
-  ];
+  // "failed" = track-wallet txs that already failed on Solana (not our paper path).
+  const okCount = Math.max(0, info.recent - info.failedOnChain);
+  const batch =
+    info.recent > 0
+      ? info.failedOnChain > 0
+        ? `batch ${info.recent}  ·  ${okCount} ok / ${info.failedOnChain} err on-chain (wallet txs)`
+        : `batch ${info.recent}  ·  all on-chain ok (wallet txs)`
+      : "no history batch";
+  const parts = [batch];
   if (!info.seedSample) parts.push("seed off");
   if (info.liveOk) parts.push("listening");
   else parts.push("history-only");

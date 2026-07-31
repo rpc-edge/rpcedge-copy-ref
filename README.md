@@ -130,7 +130,7 @@ Pretty by default. Use `LOG_JSON=1` for machine-readable events.
   live     logsSubscribe #0  edge ws
   hist     api.mainnet-beta.solana.com  address index · not on edge
   opts     mode paper  ·  seed on  ·  hb 30s
-  ready    primed 15  ·  0 failed on-chain  ·  listening  ·  Ctrl+C stop
+  ready    batch 15  ·  all on-chain ok (wallet txs)  ·  listening  ·  Ctrl+C stop
   paper    seed sample  ·  on-chain ok  ·  no submit
            4xACgbgL…5xKEprga  slot 436334641  track bwam…fSXa
 ```
