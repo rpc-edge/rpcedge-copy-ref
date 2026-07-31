@@ -12,15 +12,24 @@ import { RpcEdge } from "rpcedge-sdk";
 import { loadConfig, DEFAULT_WATCH_WALLET } from "./config.js";
 import { runDoctor } from "./doctor-check.js";
 import { watchWallet } from "./watch.js";
+import { printBanner, printStep, VERSION } from "./banner.js";
 
 async function main(): Promise<void> {
   const cfg = loadConfig();
 
+  printBanner({
+    mode: cfg.mode,
+    hasKey: cfg.hasKey,
+    watchWallet: cfg.watchWallet,
+    usingDefaultExampleWallet: cfg.watchWallet === DEFAULT_WATCH_WALLET,
+  });
+
+  // Machine-readable boot line for log scrapers
   console.log(
     JSON.stringify({
       type: "boot",
       project: "rpcedge-copy-ref",
-      version: "0.1.0",
+      version: VERSION,
       watchWallet: cfg.watchWallet,
       usingDefaultExampleWallet: cfg.watchWallet === DEFAULT_WATCH_WALLET,
       mode: cfg.mode,
@@ -53,10 +62,10 @@ async function main(): Promise<void> {
     );
   }
 
-  console.log("[1/2] doctor");
+  printStep(1, 2, "doctor");
   await runDoctor();
 
-  console.log("[2/2] watch");
+  printStep(2, 2, "watch");
   const edge = await RpcEdge.fromEnv();
   const connection = await edge.connection({ commitment: "confirmed" });
 
