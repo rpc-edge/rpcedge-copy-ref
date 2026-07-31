@@ -9,6 +9,18 @@ import { RpcEdge } from "rpcedge-sdk";
 import { spawnSync } from "node:child_process";
 
 export async function runDoctor(): Promise<void> {
+  // Prefer SDK when key is already in env (fast, no npx). Fall back to CLI
+  // for users who only installed the global/npx CLI path.
+  if (process.env.RPCEDGE_KEY?.trim()) {
+    const edge = await RpcEdge.fromEnv();
+    const report = await edge.doctor();
+    console.log(report.summary);
+    if (report.ok === false) {
+      throw new Error("doctor failed - fix auth/health before watching");
+    }
+    return;
+  }
+
   const viaCli = spawnSync(
     "npx",
     ["--yes", "rpcedge@latest", "doctor"],
@@ -22,12 +34,10 @@ export async function runDoctor(): Promise<void> {
 
   if (viaCli.status === 0 && viaCli.stdout?.trim()) {
     console.log(viaCli.stdout.trim());
-    if (viaCli.stderr?.trim()) console.error(viaCli.stderr.trim());
     return;
   }
 
-  // SDK path if npx path failed (offline, etc.)
-  console.log("[doctor] CLI path unavailable - using rpcedge-sdk doctor");
+  console.log("[doctor] no RPCEDGE_KEY and CLI path unavailable - trying SDK public path");
   const edge = await RpcEdge.fromEnv();
   const report = await edge.doctor();
   console.log(report.summary);
