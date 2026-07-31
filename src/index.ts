@@ -49,11 +49,11 @@ async function main(): Promise<void> {
   }
 
   printStep(1, 2, "doctor");
-  await runDoctor();
+  // Reuse client from doctor (avoids second fromEnv + slower start)
+  const edge = (await runDoctor()) ?? (await RpcEdge.fromEnv());
   console.log("");
 
   printStep(2, 2, "watch");
-  const edge = await RpcEdge.fromEnv();
   const connection = await edge.connection({ commitment: "confirmed" });
 
   const ac = new AbortController();

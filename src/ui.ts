@@ -62,7 +62,10 @@ export type BannerInfo = {
   usingDefaultExampleWallet: boolean;
 };
 
-/** Full professional header - always shows full track wallet. */
+/**
+ * Compact boot header. Full track wallet lives in the watch panel only
+ * (avoid printing the same pubkey twice on start).
+ */
 export function printBanner(info: BannerInfo): void {
   if (jsonMode()) {
     emit({
@@ -74,32 +77,25 @@ export function printBanner(info: BannerInfo): void {
     return;
   }
 
-  const W = 62;
-  const rule = "─".repeat(W);
+  const rule = paint(DIM, "─".repeat(56));
   const auth = info.hasKey
-    ? paint(OK, "key set → rpc.rpcedge.com")
-    : paint(WARN, "no key → public demo only");
-  const trackNote = info.usingDefaultExampleWallet
-    ? paint(DIM, "default demo · not an endorsement · NFA")
-    : paint(DIM, "custom WATCH_WALLET");
+    ? paint(OK, "key ok")
+    : paint(WARN, "no key");
+  const trackHint = info.usingDefaultExampleWallet
+    ? `demo ${shortAddr(info.watchWallet)}`
+    : `custom ${shortAddr(info.watchWallet)}`;
 
-  const lines = [
-    "",
-    paint(DIM, rule),
-    `  ${paint(ACCENT, "›››")}  ${paint(BOLD + HI, "rpc edge")}${paint(DIM, "  ·  ")}${paint(HI, "copy-ref")}`,
-    `       ${paint(DIM, "paper copy-watch  ·  not a strategy  ·  MIT")}`,
-    paint(DIM, rule),
-    `  ${paint(DIM, "version")}   ${VERSION}`,
-    `  ${paint(DIM, "mode")}      ${info.mode}`,
-    `  ${paint(DIM, "auth")}      ${auth}`,
-    `  ${paint(DIM, "track")}     ${paint(HI, info.watchWallet)}`,
-    `  ${paint(DIM, "         ")} ${trackNote}`,
-    `  ${paint(DIM, "docs")}      https://rpcedge.com/toolkit`,
-    `  ${paint(DIM, "signup")}    https://app.rpcedge.com/signup`,
-    paint(DIM, rule),
-    "",
-  ];
-  console.log(lines.join("\n"));
+  console.log(
+    [
+      "",
+      rule,
+      `  ${paint(ACCENT, "›››")}  ${paint(BOLD + HI, "rpc edge")}${paint(DIM, " · ")}${paint(HI, "copy-ref")}${paint(DIM, `  v${VERSION}`)}`,
+      `  ${paint(DIM, "run")}     ${info.mode}  ·  ${auth}  ·  ${paint(DIM, trackHint)}  ·  ${paint(DIM, "MIT · NFA")}`,
+      `  ${paint(DIM, "site")}    ${paint(DIM, "rpcedge.com/toolkit  ·  app.rpcedge.com/signup")}`,
+      rule,
+      "",
+    ].join("\n"),
+  );
 }
 
 export function printStep(n: number, total: number, label: string): void {
@@ -249,21 +245,47 @@ export function printDoctorReport(report: {
     return;
   }
 
-  const status = report.ok ? paint(OK, "OK") : paint(ERR, "FAIL");
-  console.log(`  ${paint(DIM, "status")}    ${status}`);
-  console.log(`  ${paint(DIM, "endpoint")}  ${report.config.label}`);
-  console.log(`  ${paint(DIM, "rpc")}       ${report.config.rpcUrlRedacted}`);
-  console.log(`  ${paint(DIM, "grpc")}      ${report.config.grpcHost}`);
-  console.log(`  ${paint(DIM, "relay")}     ${report.config.relayBase}`);
-  console.log(
-    `  ${paint(DIM, "key")}       ${report.config.hasKey ? "present" : "none"}  ${paint(DIM, `(${report.config.keySource})`)}`,
-  );
-  for (const ch of report.checks) {
-    const mark = ch.ok ? paint(OK, "ok") : paint(ERR, "fail");
-    console.log(`  ${paint(DIM, "check")}     ${mark}  ${ch.name}  ${paint(DIM, ch.detail)}`);
+  const result = report.ok ? paint(OK, "OK") : paint(ERR, "FAIL");
+  const keyBit = report.config.hasKey
+    ? paint(OK, `key ${report.config.keySource}`)
+    : paint(WARN, "key none");
+
+  row("result", `${result}  ·  ${paint(HI, report.config.label)}  ·  ${keyBit}`);
+
+  // Prefer health check detail (slot / RTT / version) over raw URL with redacted key
+  const health = report.checks.find((c) => c.name === "rpc_health" || c.name.includes("health"));
+  const apiKey = report.checks.find((c) => c.name === "api_key" || c.name.includes("key"));
+  if (health) {
+    const mark = health.ok ? paint(OK, "ok") : paint(ERR, "fail");
+    row("health", `${mark}  ${health.detail}`);
+  } else if (apiKey) {
+    const mark = apiKey.ok ? paint(OK, "ok") : paint(ERR, "fail");
+    row("auth", `${mark}  ${apiKey.detail}`);
   }
+
+  // Compact endpoint line (hosts only)
+  let relayHost = report.config.relayBase;
+  try {
+    relayHost = new URL(report.config.relayBase).host;
+  } catch {
+    /* keep */
+  }
+  row(
+    "ends",
+    paint(
+      DIM,
+      `grpc ${report.config.grpcHost}  ·  relay ${relayHost}`,
+    ),
+  );
+
+  // Only list failing checks in full (success path stays quiet)
+  const failed = report.checks.filter((c) => !c.ok);
+  for (const ch of failed) {
+    row("fail", `${paint(ERR, ch.name)}  ${paint(DIM, ch.detail)}`);
+  }
+
   if (report.ok) {
-    console.log(`  ${paint(OK, "ready")}     doctor green - continue to watch`);
+    row("next", paint(DIM, "doctor green → watch"));
   }
 }
 

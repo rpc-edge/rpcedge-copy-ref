@@ -1,6 +1,7 @@
 /**
  * Prove the key before the watch loop.
  * Prefer SDK when keyed (fast). Fall back to CLI / public SDK path.
+ * Returns RpcEdge when available so start can reuse it (one init).
  */
 import { loadEnvFile } from "./load-env.js";
 loadEnvFile();
@@ -16,7 +17,8 @@ import {
   emit,
 } from "./ui.js";
 
-export async function runDoctor(): Promise<void> {
+/** Run doctor; return client when SDK path used so caller can skip second fromEnv. */
+export async function runDoctor(): Promise<RpcEdge | undefined> {
   if (process.env.RPCEDGE_KEY?.trim()) {
     const edge = await RpcEdge.fromEnv();
     const report = await edge.doctor();
@@ -24,9 +26,10 @@ export async function runDoctor(): Promise<void> {
     if (!report.ok) {
       throw new Error("doctor failed - fix auth/health before watching");
     }
-    return;
+    return edge;
   }
 
+  // No key: try CLI once, then public SDK baseline (do not hang on npx forever)
   const viaCli = spawnSync("npx", ["--yes", "rpcedge@latest", "doctor"], {
     encoding: "utf8",
     env: process.env,
@@ -38,18 +41,22 @@ export async function runDoctor(): Promise<void> {
     if (jsonMode()) {
       emit({ type: "doctor", source: "cli", summary: viaCli.stdout.trim() });
     } else {
-      console.log(viaCli.stdout.trim());
+      // CLI already pretty-prints; indent lightly under our step
+      for (const line of viaCli.stdout.trim().split("\n")) {
+        console.log(line.startsWith(" ") ? line : `  ${line}`);
+      }
     }
-    return;
+    return undefined;
   }
 
-  printWarn("no RPCEDGE_KEY - trying public baseline via SDK");
+  printWarn("no RPCEDGE_KEY - public baseline via SDK");
   const edge = await RpcEdge.fromEnv();
   const report = await edge.doctor();
   printDoctorReport(report);
   if (!report.ok) {
     throw new Error("doctor failed - fix auth/health before watching");
   }
+  return edge;
 }
 
 const isMain =

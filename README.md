@@ -105,37 +105,28 @@ export WATCH_WALLET=YourBase58PubkeyHere
 Pretty by default. Use `LOG_JSON=1` for machine-readable events.
 
 ```text
-──────────────────────────────────────────────────────────────
-  ›››  rpc edge  ·  copy-ref
-       paper copy-watch  ·  not a strategy  ·  MIT
-──────────────────────────────────────────────────────────────
-  version   0.1.0
-  mode      paper
-  auth      key set → rpc.rpcedge.com
-  track     bwamJzztZsepfkteWRChggmXuiiCQvpLqPietdNfSXa
-            default demo · not an endorsement · NFA
-  docs      https://rpcedge.com/toolkit
-  signup    https://app.rpcedge.com/signup
-──────────────────────────────────────────────────────────────
+────────────────────────────────────────────────────────
+  ›››  rpc edge · copy-ref  v0.1.0
+  run     paper  ·  key ok  ·  demo bwam…fSXa  ·  MIT · NFA
+  site    rpcedge.com/toolkit  ·  app.rpcedge.com/signup
+────────────────────────────────────────────────────────
 
 [1/2] doctor
-  status    OK
-  endpoint  rpc.rpcedge.com
-  ready     doctor green - continue to watch
+  result   OK  ·  rpc.rpcedge.com  ·  key env:RPCEDGE_KEY
+  health   ok  slot …, getSlot … ms, solana-core …
+  ends     grpc grpc.rpcedge.com:443  ·  relay relay.rpcedge.com
+  next     doctor green → watch
 
 [2/2] watch
   track    bwamJzztZsepfkteWRChggmXuiiCQvpLqPietdNfSXa
-  note     demo · high-activity … · polarized · NFA · set WATCH_WALLET to override
-  link     https://explorer.solana.com/address/bwamJz…
+  note     demo · high-activity deploy wallet · polarized · NFA · …
   live     logsSubscribe #0  edge ws
   hist     api.mainnet-beta.solana.com  address index · not on edge
-  opts     mode paper  ·  seed on  ·  hb 30s
-  ready    batch 15  ·  all on-chain ok (wallet txs)  ·  listening  ·  Ctrl+C stop
-  paper    seed sample  ·  on-chain ok  ·  no submit
-           4xACgbgL…5xKEprga  slot 436334641  track bwam…fSXa
+  opts     mode paper  ·  seed off  ·  hb 30s
+  ready    batch 15  ·  13 ok / 2 err on-chain (wallet txs)  ·  listening
 ```
 
-On-chain `err` is labeled clearly (`on-chain ok` / `on-chain failed …`) so it is not confused with our paper path (we never submit). History retries with backoff; seed prefers a successful on-chain tx. Full track wallet once in the watch panel; paper lines use the short form. Ctrl+C prints a session summary.
+Full track wallet is printed once (watch panel). Doctor reuses the SDK client into watch (faster start). On-chain err counts are **wallet** history, not our paper path.
 
 ---
 
