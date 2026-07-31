@@ -97,23 +97,31 @@ export WATCH_WALLET=YourBase58PubkeyHere
 
 ## Example output
 
+Pretty by default. Use `LOG_JSON=1` for machine-readable events.
+
 ```text
-────────────────────────────────────────────────────────
-  ›››  rpc edge · copy-ref
-       paper copy-watch reference  ·  not a strategy  ·  MIT
-────────────────────────────────────────────────────────
-  version  0.1.0
-  mode     paper
-  auth     RPCEDGE_KEY set
-  watch    bwam…fSXa  default demo wallet (not an endorsement)
-  docs     https://rpcedge.com/toolkit
-────────────────────────────────────────────────────────
+──────────────────────────────────────────────────────────
+  ›››  rpc edge  ·  copy-ref
+       paper copy-watch  ·  not a strategy  ·  MIT
+──────────────────────────────────────────────────────────
+  version   0.1.0
+  mode      paper
+  auth      key set → rpc.rpcedge.com
+  watch     bwam…fSXa  demo wallet · not an endorsement
+  docs      https://rpcedge.com/toolkit
+  signup    https://app.rpcedge.com/signup
+──────────────────────────────────────────────────────────
 
 [1/2] doctor
-rpcedge doctor: OK  endpoint rpc.rpcedge.com  …
+  status    OK
+  endpoint  rpc.rpcedge.com
+  ready     doctor green - continue to watch
 
 [2/2] watch
-{"type":"paper","signature":"…","note":"paper: … DRY_RUN; no tx submitted"}
+  watch   logsSubscribe on bwam…fSXa  ·  mode paper
+  index   address index api.mainnet-beta.solana.com
+  live    subscription #0  ·  waiting for new activity
+  paper   seed  2FcHAuLT…5xKEprga  slot …  no tx submitted
 ```
 
 ---

@@ -2,7 +2,7 @@
  * rpcedge-copy-ref - copy-watch reference for rpc edge.
  *
  * 1) doctor (prove key)
- * 2) watch WATCH_WALLET signatures via RPC
+ * 2) watch WATCH_WALLET via logsSubscribe
  * 3) paper-log only unless you deliberately go live (still no auto-mirror)
  */
 import { loadEnvFile } from "./load-env.js";
@@ -12,7 +12,15 @@ import { RpcEdge } from "rpcedge-sdk";
 import { loadConfig, DEFAULT_WATCH_WALLET } from "./config.js";
 import { runDoctor } from "./doctor-check.js";
 import { watchWallet } from "./watch.js";
-import { printBanner, printStep, VERSION } from "./banner.js";
+import {
+  printBanner,
+  printStep,
+  printWarn,
+  logStatus,
+  jsonMode,
+  emit,
+  VERSION,
+} from "./ui.js";
 
 async function main(): Promise<void> {
   const cfg = loadConfig();
@@ -24,9 +32,11 @@ async function main(): Promise<void> {
     usingDefaultExampleWallet: cfg.watchWallet === DEFAULT_WATCH_WALLET,
   });
 
-  // Machine-readable boot line for log scrapers
-  console.log(
-    JSON.stringify({
+  // Extra machine boot only when not already emitted via banner JSON mode
+  if (!jsonMode()) {
+    // keep a single optional JSON line disabled in pretty mode
+  } else {
+    emit({
       type: "boot",
       project: "rpcedge-copy-ref",
       version: VERSION,
@@ -34,10 +44,8 @@ async function main(): Promise<void> {
       usingDefaultExampleWallet: cfg.watchWallet === DEFAULT_WATCH_WALLET,
       mode: cfg.mode,
       hasKey: cfg.hasKey,
-      disclaimer:
-        "Not financial advice. Default wallet is a high-activity public example for stream demos only - not an endorsement. Paper mode default.",
-    }),
-  );
+    });
+  }
 
   if (!cfg.hasKey) {
     if (cfg.mode !== "paper") {
@@ -53,17 +61,12 @@ async function main(): Promise<void> {
       );
       process.exit(1);
     }
-    console.warn(
-      JSON.stringify({
-        type: "warn",
-        message:
-          "RPCEDGE_KEY unset - paper demo on public RPC only. Production path: app.rpcedge.com/signup + doctor.",
-      }),
-    );
+    printWarn("RPCEDGE_KEY unset - paper demo may use public RPC only");
   }
 
   printStep(1, 2, "doctor");
   await runDoctor();
+  console.log("");
 
   printStep(2, 2, "watch");
   const edge = await RpcEdge.fromEnv();
@@ -78,7 +81,7 @@ async function main(): Promise<void> {
     await watchWallet(connection, cfg, { signal: ac.signal });
   } catch (e) {
     if (e instanceof Error && e.message === "aborted") {
-      console.log(JSON.stringify({ type: "shutdown", ok: true }));
+      logStatus("shutdown", "stopped");
       return;
     }
     throw e;

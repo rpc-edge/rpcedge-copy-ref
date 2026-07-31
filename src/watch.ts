@@ -1,17 +1,13 @@
 /**
  * Wallet activity watcher.
  *
- * Primary path: WebSocket logsSubscribe on the watched pubkey (works on
- * live trading RPCs like rpc edge - no transaction-history index required).
- *
- * Optional path: getSignaturesForAddress when HISTORY_RPC_URL is set to an
- * indexer/archive RPC (edge nodes often return "Transaction history is not
- * available from this node").
+ * Primary: WebSocket logsSubscribe on edge (no history index required).
+ * Paper helper: public mainnet getSignaturesForAddress as address index.
  */
 import type { Connection, Logs } from "@solana/web3.js";
-import { PublicKey } from "@solana/web3.js";
-import { Connection as SolConnection } from "@solana/web3.js";
+import { PublicKey, Connection as SolConnection } from "@solana/web3.js";
 import { logPaper, paperFollowNote } from "./paper.js";
+import { logStatus, printErr, shortAddr } from "./ui.js";
 import type { AppConfig } from "./config.js";
 
 export async function watchWallet(
@@ -22,14 +18,10 @@ export async function watchWallet(
   const pubkey = new PublicKey(cfg.watchWallet);
   const seen = new Set<string>();
 
-  console.log(
-    JSON.stringify({
-      type: "watch_start",
-      wallet: cfg.watchWallet,
-      mode: cfg.mode,
-      path: "logsSubscribe",
-      note: "live WS logs on watched pubkey - paper by default",
-    }),
+  logStatus(
+    "watch_start",
+    `logsSubscribe on ${shortAddr(cfg.watchWallet)}  ·  mode ${cfg.mode}`,
+    { wallet: cfg.watchWallet, mode: cfg.mode, path: "logsSubscribe" },
   );
 
   const subId = connection.onLogs(
@@ -39,7 +31,6 @@ export async function watchWallet(
       if (seen.has(logs.signature)) return;
       seen.add(logs.signature);
       if (seen.size > 5_000) {
-        // keep last ~1k
         const arr = [...seen];
         seen.clear();
         for (const s of arr.slice(-1000)) seen.add(s);
@@ -49,36 +40,32 @@ export async function watchWallet(
     "confirmed",
   );
 
-  // History index path: trading edge RPCs often lack address history.
-  // Default paper demos use public mainnet as the index only; live WS still uses edge.
-  // Set HISTORY_RPC_URL=off to disable. Override URL with HISTORY_RPC_URL=https://...
   let historyTimer: ReturnType<typeof setInterval> | undefined;
   const historyRaw = process.env.HISTORY_RPC_URL?.trim();
-  const historyOff = historyRaw === "0" || historyRaw === "off" || historyRaw === "false";
-  const historyUrl =
-    historyOff
-      ? ""
-      : historyRaw && historyRaw.startsWith("http")
-        ? historyRaw
-        : cfg.mode === "paper"
-          ? "https://api.mainnet-beta.solana.com"
-          : "";
+  const historyOff =
+    historyRaw === "0" || historyRaw === "off" || historyRaw === "false";
+  const historyUrl = historyOff
+    ? ""
+    : historyRaw && historyRaw.startsWith("http")
+      ? historyRaw
+      : cfg.mode === "paper"
+        ? "https://api.mainnet-beta.solana.com"
+        : "";
 
   if (historyUrl) {
     const hist = new SolConnection(historyUrl, { commitment: "confirmed" });
-    console.log(
-      JSON.stringify({
-        type: "history_poller",
-        host: (() => {
-          try {
-            return new URL(historyUrl).host;
-          } catch {
-            return "history";
-          }
-        })(),
-        note: "address-history index (not the edge node) - seeds + new paper events",
-      }),
+    let histHost = "history";
+    try {
+      histHost = new URL(historyUrl).host;
+    } catch {
+      /* keep */
+    }
+    logStatus(
+      "history",
+      `address index ${histHost}  ·  edge has no full history API`,
+      { host: histHost },
     );
+
     let primed = false;
     const tick = async () => {
       try {
@@ -88,14 +75,11 @@ export async function watchWallet(
         if (!primed) {
           for (const s of sigs) seen.add(s.signature);
           primed = true;
-          console.log(
-            JSON.stringify({
-              type: "watch_primed",
-              seeded: sigs.length,
-              note: "history seed complete - next polls emit new paper events only",
-            }),
+          logStatus(
+            "watch_primed",
+            `seeded ${sigs.length} recent signatures  ·  emitting seed sample`,
+            { seeded: sigs.length },
           );
-          // In paper demos, also surface the newest historical sig once so the loop is visibly alive
           if (cfg.mode === "paper" && sigs[0]) {
             const s = sigs[0];
             logPaper({
@@ -104,9 +88,8 @@ export async function watchWallet(
               slot: s.slot,
               err: s.err,
               feePayer: null,
-              note:
-                paperFollowNote(cfg.watchWallet) +
-                " (latest historical via index - seed sample)",
+              source: "seed",
+              note: paperFollowNote(cfg.watchWallet) + " (seed sample)",
             });
           }
           return;
@@ -120,16 +103,12 @@ export async function watchWallet(
             slot: s.slot,
             err: s.err,
             feePayer: null,
+            source: "history",
             note: paperFollowNote(cfg.watchWallet) + " (history index)",
           });
         }
       } catch (e) {
-        console.error(
-          JSON.stringify({
-            type: "history_error",
-            message: e instanceof Error ? e.message : String(e),
-          }),
-        );
+        printErr(e instanceof Error ? e.message : String(e));
       }
     };
     void tick();
@@ -138,12 +117,10 @@ export async function watchWallet(
     }, cfg.pollMs);
   }
 
-  console.log(
-    JSON.stringify({
-      type: "watch_listening",
-      subscription: subId,
-      note: "waiting for new logs involving watch wallet…",
-    }),
+  logStatus(
+    "watch_listening",
+    `subscription #${subId}  ·  waiting for new activity  ·  Ctrl+C to stop`,
+    { subscription: subId },
   );
 
   try {
@@ -158,11 +135,7 @@ export async function watchWallet(
   }
 }
 
-async function handleLogs(
-  cfg: AppConfig,
-  logs: Logs,
-  slot: number,
-): Promise<void> {
+async function handleLogs(cfg: AppConfig, logs: Logs, slot: number): Promise<void> {
   if (cfg.mode === "paper" || !cfg.liveSubmit) {
     logPaper({
       at: new Date().toISOString(),
@@ -170,6 +143,7 @@ async function handleLogs(
       slot,
       err: logs.err,
       feePayer: null,
+      source: "live",
       note:
         paperFollowNote(cfg.watchWallet) +
         (logs.err ? " (tx err on chain)" : ""),
@@ -177,29 +151,19 @@ async function handleLogs(
     return;
   }
 
-  console.log(
-    JSON.stringify({
-      type: "live_stub",
-      signature: logs.signature,
-      note: "LIVE_SUBMIT enabled but auto-mirror is intentionally not implemented",
-    }),
+  logStatus(
+    "watch_listening",
+    `live stub ${logs.signature.slice(0, 8)}…  ·  auto-mirror not implemented`,
   );
 }
 
 function waitUntilAbort(signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     if (signal?.aborted) {
       resolve();
       return;
     }
-    if (!signal) {
-      // never resolves without signal - keep process alive
-      return;
-    }
-    signal.addEventListener(
-      "abort",
-      () => resolve(),
-      { once: true },
-    );
+    if (!signal) return;
+    signal.addEventListener("abort", () => resolve(), { once: true });
   });
 }
