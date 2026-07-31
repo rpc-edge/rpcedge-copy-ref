@@ -52,6 +52,7 @@ You should see a terminal header, doctor green on `rpc.rpcedge.com`, then paper 
 | Toolkit | https://rpcedge.com/toolkit |
 | Copy-trading guide | https://rpcedge.com/for/copy-trading-bots |
 | SDK / CLI / MCP | https://github.com/rpc-edge/rpcedge-toolkit |
+| DLMM paper twin | https://github.com/rpc-edge/rpcedge-dlmm-ref |
 | Contributing | [CONTRIBUTING.md](./CONTRIBUTING.md) · [SECURITY.md](./SECURITY.md) |
 
 ---
