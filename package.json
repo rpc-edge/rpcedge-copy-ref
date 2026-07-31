@@ -1,0 +1,45 @@
+{
+  "name": "rpcedge-copy-ref",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Minimal Solana copy-watch reference for rpc edge: doctor → stream/poll a wallet → paper-trade log. Not financial advice.",
+  "type": "module",
+  "license": "MIT",
+  "author": "rpc edge <rpcedge@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rpc-edge/rpcedge-copy-ref.git"
+  },
+  "homepage": "https://github.com/rpc-edge/rpcedge-copy-ref",
+  "bugs": {
+    "url": "https://github.com/rpc-edge/rpcedge-copy-ref/issues"
+  },
+  "keywords": [
+    "solana",
+    "copy-trading",
+    "rpc-edge",
+    "rpcedge",
+    "yellowstone",
+    "reference"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "tsx src/index.ts",
+    "watch": "tsx src/index.ts",
+    "doctor": "tsx src/doctor-check.ts",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.98.0",
+    "rpcedge-sdk": "^0.1.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
