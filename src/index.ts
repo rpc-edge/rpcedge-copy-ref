@@ -5,6 +5,9 @@
  * 2) watch WATCH_WALLET signatures via RPC
  * 3) paper-log only unless you deliberately go live (still no auto-mirror)
  */
+import { loadEnvFile } from "./load-env.js";
+loadEnvFile();
+
 import { RpcEdge } from "rpcedge-sdk";
 import { loadConfig, DEFAULT_WATCH_WALLET } from "./config.js";
 import { runDoctor } from "./doctor-check.js";

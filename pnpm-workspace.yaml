@@ -1,0 +1,15 @@
+# pnpm 11.x project policy lives here (package.json "pnpm" field is ignored).
+
+# Own packages often publish same-day as this reference app.
+minimumReleaseAgeExclude:
+  - rpcedge-core
+  - rpcedge-sdk
+  - rpcedge
+  - rpcedge-mcp
+
+# Build-script allowlist (pnpm 11.8+). esbuild is used by tsx;
+# ws optional natives are not required for the paper path.
+allowBuilds:
+  esbuild: true
+  bufferutil: false
+  utf-8-validate: false

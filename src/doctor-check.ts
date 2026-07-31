@@ -2,6 +2,9 @@
  * Prove the key before the watch loop.
  * Prefer CLI when available; fall back to SDK doctor.
  */
+import { loadEnvFile } from "./load-env.js";
+loadEnvFile();
+
 import { RpcEdge } from "rpcedge-sdk";
 import { spawnSync } from "node:child_process";
 
